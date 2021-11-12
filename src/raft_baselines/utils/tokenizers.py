@@ -31,4 +31,5 @@ class TransformersTokenizer(Tokenizer):
             text, truncation=True, max_length=max_tokens, return_offsets_mapping=True
         )
 
-        return text[: encoding.offset_mapping[-1][1]]
+        # return text[: encoding.offset_mapping[-1][1]]
+        return text[: encoding.offset_mapping[-2][1]]

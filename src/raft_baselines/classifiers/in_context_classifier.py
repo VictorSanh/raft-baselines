@@ -115,8 +115,7 @@ class InContextClassifier(Classifier):
                 untruncated_text, max_tokens - output_block_tokens - 1
             )
         )
-        return f"""{input_block}
-{output_block}"""
+        return f"""{input_block}\n{output_block}"""
 
     def format_example(
         self, example: Mapping[str, str], clas: str, max_tokens: Optional[int] = None
@@ -124,23 +123,22 @@ class InContextClassifier(Classifier):
         clas_str = (
             clas if not self.add_prefixes else f"{self.classes.index(clas) + 1}. {clas}"
         )
-        output_block = f"{self.class_col}: {clas_str}"
+        untruncated_output = f"{self.class_col}: {clas_str}"
         output_block = (
-            output_block
+            untruncated_output
             if max_tokens is None
-            else self.tokenizer.truncate_by_tokens(output_block, max_tokens - 2)
+            else self.tokenizer.truncate_by_tokens(untruncated_output, max_tokens - 2)
         )
-        output_block_tokens = self.tokenizer.num_tokens(output_block)
+        output_block_nb_tokens = self.tokenizer.num_tokens(output_block)
         untruncated_text = self.format_dict(example)
         input_block = (
             untruncated_text
             if max_tokens is None
             else self.tokenizer.truncate_by_tokens(
-                untruncated_text, max_tokens - output_block_tokens - 1
+                untruncated_text, max_tokens - output_block_nb_tokens - 1
             )
         )
-        return f"""{input_block}
-{output_block}"""
+        return f"""{input_block}\n{output_block}"""
 
     def render_examples(
         self,
