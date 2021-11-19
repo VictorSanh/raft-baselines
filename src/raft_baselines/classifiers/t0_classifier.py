@@ -80,15 +80,39 @@ class T0Classifier(InContextClassifier):
             for k, v in decoder_inputs.items()
         }
         model_inputs = {**encoder_inputs, **decoder_inputs}
-        model_inputs = {
-            k: v.to(self.device)
-            for k, v in model_inputs.items()
-        }
 
-        with torch.no_grad():
-            outputs = self.model(**model_inputs).logits
-            outputs = outputs.cpu()
+        def split_chunk(lst, n):
+            """Yield successive n-sized chunks from lst."""
+            for i in range(0, len(lst), n):
+                yield lst[i:i + n]
 
+        chunked_model_inputs = [
+            {
+                "input_ids": input_ids,
+                "attention_mask": attention_mask,
+                "decoder_input_ids": decoder_input_ids,
+                "decoder_attention_mask": decoder_attention_mask,
+            }
+            for input_ids, attention_mask, decoder_input_ids, decoder_attention_mask in zip(
+                split_chunk(model_inputs["input_ids"], 2),
+                split_chunk(model_inputs["attention_mask"],  2),
+                split_chunk(model_inputs["decoder_input_ids"],  2),
+                split_chunk(model_inputs["decoder_attention_mask"], 2)
+            )
+        ]
+
+        outputs = []
+        for chunk in chunked_model_inputs:
+            chunk = {
+                k: v.to(self.device)
+                for k, v in chunk.items()
+            }
+            with torch.no_grad():
+                o = self.model(**chunk).logits
+                o = o.cpu()
+                outputs.append(o)
+
+        outputs = torch.vstack(outputs)
         masked_logits = decoder_inputs["decoder_attention_mask"].unsqueeze(-1) * outputs
         seq_token_probs = torch.gather(masked_logits, -1, decoder_inputs["decoder_input_ids"].unsqueeze(-1))
         seq_prob = seq_token_probs.squeeze(dim=-1).sum(dim=-1)
