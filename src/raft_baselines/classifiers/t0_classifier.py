@@ -65,7 +65,7 @@ class T0Classifier(InContextClassifier):
         prompt: str,
     ) -> List[float]:
         encoder_inputs = self.tokenizer([prompt for _ in range(len(self.classes))], return_tensors="pt")
-        decoder_inputs = self.tokenizer(
+        targets = self.tokenizer(
             [
                 f" {clas}"
                 if not self.add_prefixes
@@ -75,11 +75,10 @@ class T0Classifier(InContextClassifier):
             return_tensors="pt",
             padding=True
         )
-        decoder_inputs = {
-            f"decoder_{k}": v
-            for k, v in decoder_inputs.items()
+        model_inputs = {
+            **encoder_inputs,
+            "labels": targets["input_ids"]
         }
-        model_inputs = {**encoder_inputs, **decoder_inputs}
 
         def split_chunk(lst, n):
             """Yield successive n-sized chunks from lst."""
@@ -90,14 +89,12 @@ class T0Classifier(InContextClassifier):
             {
                 "input_ids": input_ids,
                 "attention_mask": attention_mask,
-                "decoder_input_ids": decoder_input_ids,
-                "decoder_attention_mask": decoder_attention_mask,
+                "labels": labels,
             }
-            for input_ids, attention_mask, decoder_input_ids, decoder_attention_mask in zip(
+            for input_ids, attention_mask, labels in zip(
                 split_chunk(model_inputs["input_ids"], 2),
                 split_chunk(model_inputs["attention_mask"],  2),
-                split_chunk(model_inputs["decoder_input_ids"],  2),
-                split_chunk(model_inputs["decoder_attention_mask"], 2)
+                split_chunk(model_inputs["labels"],  2),
             )
         ]
 
@@ -113,8 +110,8 @@ class T0Classifier(InContextClassifier):
                 outputs.append(o)
 
         outputs = torch.vstack(outputs)
-        masked_logits = decoder_inputs["decoder_attention_mask"].unsqueeze(-1) * outputs
-        seq_token_probs = torch.gather(masked_logits, -1, decoder_inputs["decoder_input_ids"].unsqueeze(-1))
+        masked_logits = targets["attention_mask"].unsqueeze(-1) * outputs
+        seq_token_probs = torch.gather(masked_logits, -1, targets["input_ids"].unsqueeze(-1))
         seq_prob = seq_token_probs.squeeze(dim=-1).sum(dim=-1)
 
         return seq_prob.detach().numpy()
