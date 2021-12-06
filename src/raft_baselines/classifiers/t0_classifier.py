@@ -64,7 +64,11 @@ class T0Classifier(InContextClassifier):
         self,
         prompt: str,
     ) -> List[float]:
-        encoder_inputs = self.tokenizer([prompt for _ in range(len(self.classes))], return_tensors="pt")
+        encoder_inputs = self.tokenizer(
+            [prompt for _ in range(len(self.classes))],
+            return_tensors="pt",
+            add_special_tokens=False,
+        )
         targets = self.tokenizer(
             [
                 f" {clas}"
@@ -98,20 +102,19 @@ class T0Classifier(InContextClassifier):
             )
         ]
 
-        outputs = []
+        logits = []
         for chunk in chunked_model_inputs:
             chunk = {
                 k: v.to(self.device)
                 for k, v in chunk.items()
             }
             with torch.no_grad():
-                o = self.model(**chunk).logits
-                o = o.cpu()
-                outputs.append(o)
+                model_outputs = self.model(**chunk)
+                l = model_outputs.logits.cpu()
+                logits.append(l)
+        logits = torch.vstack(logits)
+        masked_log_probs = targets["attention_mask"].unsqueeze(-1) * torch.log_softmax(logits, dim=-1)
+        seq_token_log_probs = torch.gather(masked_log_probs, -1, targets["input_ids"].unsqueeze(-1))
+        seq_log_prob = seq_token_log_probs.squeeze(dim=-1).sum(dim=-1)
 
-        outputs = torch.vstack(outputs)
-        masked_logits = targets["attention_mask"].unsqueeze(-1) * outputs
-        seq_token_probs = torch.gather(masked_logits, -1, targets["input_ids"].unsqueeze(-1))
-        seq_prob = seq_token_probs.squeeze(dim=-1).sum(dim=-1)
-
-        return seq_prob.detach().numpy()
+        return seq_log_prob.detach().numpy()
