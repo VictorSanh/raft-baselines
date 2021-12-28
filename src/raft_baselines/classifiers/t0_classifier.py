@@ -117,4 +117,4 @@ class T0Classifier(InContextClassifier):
         seq_token_log_probs = torch.gather(masked_log_probs, -1, targets["input_ids"].unsqueeze(-1))
         seq_log_prob = seq_token_log_probs.squeeze(dim=-1).sum(dim=-1)
 
-        return seq_log_prob.detach().numpy()
+        return np.exp(seq_log_prob.detach().numpy())
