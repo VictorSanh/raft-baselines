@@ -62,6 +62,7 @@ def base_config():
     configs = datasets.get_dataset_config_names("ought/raft")
     # set n_test to -1 to run on all test examples
     n_test = 5
+    n_beg = 0
     random_seed = 42
     zero_shot = False
 
@@ -98,13 +99,16 @@ def make_predictions(
     classifier_cls,
     extra_kwargs,
     n_test,
+    n_beg,
     classifier_kwargs,
     random_seed,
 ):
     classifier = classifier_cls(train_dataset, **classifier_kwargs, **extra_kwargs)
 
     if n_test > -1:
-        test_dataset = test_dataset.select(range(n_test))
+        test_dataset = test_dataset.select(range(n_beg, n_beg + n_test))
+    else:
+        test_dataset = test_dataset.select(range(n_beg, len(test_dataset) - n_beg))
 
     def predict(example):
         del example["Label"]
